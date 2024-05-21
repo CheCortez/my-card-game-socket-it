@@ -1,113 +1,217 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import io from "socket.io-client";
+import { motion } from "framer-motion";
+import Cookies from "js-cookie";
+
+import { cn } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import { Card } from"@/components/ui/card";
+import {Input} from "@/components/ui/input";
+import { Text } from "@/components/ui/text";
+
+
+const socket = io('http://localhost:3001');
+
+type CardType = {
+  suit: string;
+  value: number;
+  code: string;
+  selected?: boolean;
+};
+
+const colors = ["Red", "Blue", "Green", "Yellow", "Purple"];
+const foods = ["Apple", "Banana", "Carrot", "Donut", "Eggplant"];
+
+function getRandomName() {
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  const food = foods[Math.floor(Math.random() * foods.length)];
+  return `${color} ${food}`;
+}
+
+export default function HomePage() {
+  const [room, setRoom] = useState("");
+  const [joined, setJoined] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<number | null>(null);
+  const [cards, setCards] = useState<(CardType | null)[]>([null, null, null]);
+  const [revealed, setRevealed] = useState(false);
+  const [message, setMessage] = useState("");
+  const [scoreboard, setScoreboard] = useState<string[]>([]);
+  const [username, setUsername] = useState<string>("");
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [opponentCard, setOpponentCard] = useState<number | null>(null);
+
+  useEffect(() => {
+    const storedName = Cookies.get('username');
+    if (storedName) {
+      setUsername(storedName);
+    } else {
+      const randomName = getRandomName();
+      setUsername(randomName);
+      Cookies.set('username', randomName);
+    }
+
+    socket.on("message", (msg) => setMessage(msg));
+
+    socket.on("cardSelected", ({ id, cardIndex }) => {
+      setCards((prevCards) => {
+        const newCards = [...prevCards];
+        const existingCard = newCards[cardIndex];
+        if (existingCard) {
+          newCards[cardIndex] = { ...existingCard, selected: true };
+        }
+        return newCards;
+      });
+      if (id !== socket.id) setOpponentCard(cardIndex);
+    });
+
+    socket.on("cardUnselected", ({ id, cardIndex }) => {
+      setCards((prevCards) => {
+        const newCards = [...prevCards];
+        const existingCard = newCards[cardIndex];
+        if (existingCard) {
+          newCards[cardIndex] = { ...existingCard, selected: false };
+        }
+        return newCards;
+      });
+      if (id !== socket.id) setOpponentCard(null);
+    });
+
+    socket.on("revealCards", (playerCards: CardType[]) => {
+      setCards(playerCards);
+      setRevealed(true);
+
+      setTimeout(() => {
+        setRevealed(false);
+        setCards([null, null, null]);
+        setSelectedCard(null);
+        setOpponentCard(null);
+      }, 3000);
+    });
+
+    socket.on("gameResult", (result: string) => {
+      setScoreboard((prev) => [result, ...prev]);
+    });
+
+    socket.on("startCountdown", (time) => {
+      setCountdown(time);
+    });
+
+    socket.on("countdown", (time) => {
+      setCountdown(time);
+    });
+
+    socket.on("startNewGame", () => {
+      setRevealed(false);
+      setCards([null, null, null]);
+      setSelectedCard(null);
+      setOpponentCard(null);
+      setCountdown(null);
+    });
+
+    return () => {
+      socket.off("message");
+      socket.off("cardSelected");
+      socket.off("cardUnselected");
+      socket.off("revealCards");
+      socket.off("gameResult");
+      socket.off("startCountdown");
+      socket.off("countdown");
+      socket.off("startNewGame");
+    };
+  }, [room]);
+
+  const joinRoom = () => {
+    socket.emit("joinRoom", { room, username });
+    setJoined(true);
+  };
+
+  const selectCard = (index: number) => {
+    if (selectedCard === index) {
+      socket.emit("unselectCard", { room, cardIndex: index });
+      setSelectedCard(null);
+    } else if (selectedCard === null && cards[index]?.selected !== true) {
+      setSelectedCard(index);
+      socket.emit("selectCard", { room, cardIndex: index });
+    }
+  };
+
+  const revealCards = () => {
+    if (selectedCard !== null && opponentCard !== null) {
+      socket.emit("revealCards", room);
+    }
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "20px" }}>
+      <Text variant="h1">Card Game</Text>
+      {!joined ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <Input
+            type="text"
+            value={room}
+            onChange={(e) => setRoom(e.target.value)}
+            placeholder="Enter room name"
+            style={{ marginBottom: "10px" }}
+          />
+          <Input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Enter your name"
+            style={{ marginBottom: "10px" }}
+          />
+          <Button onClick={joinRoom}>Join Room</Button>
         </div>
+      ) : (
+        <div>
+          <Text>{message}</Text>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: "20px" }}>
+            {cards.map((card, index) => (
+              <motion.div
+                key={index}
+                initial={{ rotateY: 180 }}
+                animate={{ rotateY: revealed ? 0 : 180 }}
+                transition={{ duration: 0.5 }}
+                style={{
+                  width: "100px",
+                  height: "150px",
+                  margin: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: selectedCard === index ? "blue" : opponentCard === index ? "red" : revealed ? "white" : "gray",
+                  cursor: cards[index]?.selected ? "default" : "pointer",
+                  borderRadius: "10px",
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.1)"
+                }}
+                onClick={() => selectCard(index)}
+              >
+                {revealed && card !== null ? `${card.code}` : "?"}
+              </motion.div>
+            ))}
+          </div>
+          {countdown !== null && (
+            <div style={{ marginTop: "20px" }}>
+              <Text variant="h2">Revealing in {countdown} seconds...</Text>
+            </div>
+          )}
+          <Button onClick={revealCards} disabled={selectedCard === null || opponentCard === null || revealed} style={{ marginTop: "20px" }}>
+            Reveal Cards
+          </Button>
+        </div>
+      )}
+      <div style={{ marginTop: "40px", width: "300px" }}>
+        <Card>
+          <Text variant="h2">Scoreboard</Text>
+          <ul style={{ padding: "0 20px" }}>
+            {scoreboard.map((score, index) => (
+              <li key={index}>{score}</li>
+            ))}
+          </ul>
+        </Card>
       </div>
-
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+    </div>
   );
 }
