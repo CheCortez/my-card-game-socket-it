@@ -8,9 +8,10 @@ const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
-const NEXT_PORT = process.env.NEXT_PORT || 3000; // Port for Next.js
-const SOCKET_PORT = process.env.SOCKET_PORT || 3001; // Separate port for Socket.IO
+const PORT = process.env.PORT || 3000; // Use Railway's dynamic port or fallback to 3000
+const SOCKET_PORT = process.env.SOCKET_PORT || PORT; // Use the same port for simplicity
 const FRONTEND_URL = dev ? "http://localhost:3000" : process.env.NEXT_PUBLIC_SOCKET_URL;
+
 
 const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
 const values = [
@@ -193,6 +194,6 @@ app.prepare().then(() => {
 
   server.listen(NEXT_PORT, (err) => {
     if (err) throw err;
-    console.log(`Next.js server is listening on ${dev ? 'http://localhost' : ''}:${NEXT_PORT}`);
+    console.log(`Next.js server is listening on ${dev ? 'http://localhost' : ''}:${PORT}`);
   });
 });
