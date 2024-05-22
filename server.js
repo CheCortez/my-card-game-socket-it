@@ -8,10 +8,10 @@ const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
-const NEXT_PORT = 3000; // Port for Next.js
-const SOCKET_PORT = 3001; // Separate port for Socket.IO
+const NEXT_PORT = process.env.NEXT_PORT || 3000; // Port for Next.js
+const SOCKET_PORT = process.env.SOCKET_PORT || 3001; // Separate port for Socket.IO
+const FRONTEND_URL = dev ? "http://localhost:3000" : process.env.NEXT_PUBLIC_SOCKET_URL;
 
-// Card and deck logic
 const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
 const values = [
   { value: 2, code: '2' },
@@ -57,13 +57,13 @@ app.prepare().then(() => {
 
   // Use CORS middleware
   server.use(cors({
-    origin: "http://localhost:3000", // Your frontend URL
+    origin: FRONTEND_URL,
     methods: ["GET", "POST"]
   }));
 
   const io = new Server(httpServer, {
     cors: {
-      origin: "http://localhost:3000", // Your frontend URL
+      origin: FRONTEND_URL,
       methods: ["GET", "POST"]
     }
   });
@@ -188,11 +188,11 @@ app.prepare().then(() => {
 
   httpServer.listen(SOCKET_PORT, (err) => {
     if (err) throw err;
-    console.log(`Socket.IO server is listening on http://localhost:${SOCKET_PORT}`);
+    console.log(`Socket.IO server is listening on ${dev ? 'http://localhost' : ''}:${SOCKET_PORT}`);
   });
 
   server.listen(NEXT_PORT, (err) => {
     if (err) throw err;
-    console.log(`Next.js server is listening on http://localhost:${NEXT_PORT}`);
+    console.log(`Next.js server is listening on ${dev ? 'http://localhost' : ''}:${NEXT_PORT}`);
   });
 });

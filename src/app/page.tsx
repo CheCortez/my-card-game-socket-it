@@ -7,12 +7,12 @@ import Cookies from "js-cookie";
 
 import { cn } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
-import { Card } from"@/components/ui/card";
-import {Input} from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 
-
-const socket = io('http://localhost:3001');
+// Use environment variable for backend URL
+const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001');
 
 type CardType = {
   suit: string;
