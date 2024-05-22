@@ -5,7 +5,6 @@ import io from "socket.io-client";
 import { motion } from "framer-motion";
 import Cookies from "js-cookie";
 
-import { cn } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
