@@ -9,9 +9,7 @@ const app = next({ dev });
 const handle = app.getRequestHandler();
 
 const PORT = process.env.PORT || 3000; // Use Railway's dynamic port or fallback to 3000
-const SOCKET_PORT = process.env.SOCKET_PORT || PORT; // Use the same port for simplicity
 const FRONTEND_URL = dev ? "http://localhost:3000" : process.env.NEXT_PUBLIC_SOCKET_URL;
-
 
 const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
 const values = [
@@ -76,6 +74,7 @@ app.prepare().then(() => {
 
     socket.on('joinRoom', ({ room, username }) => {
       socket.join(room);
+      console.log(`User ${username} with ID ${socket.id} joined room ${room}`);
       if (!rooms[room]) {
         const deck = shuffleDeck(createDeck());
         rooms[room] = {
@@ -90,6 +89,7 @@ app.prepare().then(() => {
       rooms[room].players.push(socket.id);
       rooms[room].playerNames[socket.id] = username;
       io.to(room).emit('message', `${username} joined the room ${room}`);
+      io.to(room).emit('updatePlayers', rooms[room].playerNames); // Emit updated player list
     });
 
     socket.on('selectCard', ({ room, cardIndex }) => {
@@ -176,6 +176,8 @@ app.prepare().then(() => {
             if (roomData.players.length === 0) {
               clearInterval(roomData.countdown);
               delete rooms[room];
+            } else {
+              io.to(room).emit('updatePlayers', roomData.playerNames); // Emit updated player list
             }
           }
         }
@@ -187,12 +189,12 @@ app.prepare().then(() => {
     return handle(req, res);
   });
 
-  httpServer.listen(SOCKET_PORT, (err) => {
+  httpServer.listen(PORT, '0.0.0.0', (err) => {
     if (err) throw err;
-    console.log(`Socket.IO server is listening on ${dev ? 'http://localhost' : ''}:${SOCKET_PORT}`);
+    console.log(`Socket.IO server is listening on ${dev ? 'http://localhost' : ''}:${PORT}`);
   });
 
-  server.listen(NEXT_PORT, (err) => {
+  server.listen(PORT, '0.0.0.0', (err) => {
     if (err) throw err;
     console.log(`Next.js server is listening on ${dev ? 'http://localhost' : ''}:${PORT}`);
   });
